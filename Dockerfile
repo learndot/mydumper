@@ -15,6 +15,10 @@ RUN apt-get -y -q update \
         && apt-get autoclean \
         && pip install awscli
 
+RUN apt-get install -y curl
+
 COPY --from=builder /mydumper/mydumper /usr/bin/
 COPY --from=builder /mydumper/myloader /usr/bin/
-CMD ["/bin/bash"]
+
+ENTRYPOINT ["/bin/bash"]
+CMD ["-c", "if [ ! -z $SCRIPT_URL ]; then curl --silent $SCRIPT_URL -o script && chmod +x script && ./script; fi"]
