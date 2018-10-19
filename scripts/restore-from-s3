@@ -1,0 +1,43 @@
+#!/bin/bash
+
+set -euo pipefail
+
+export DB_SCRATCH_DIR='/db'
+
+db_connect() {
+  until mysql -h "${DB_FQDN}" -u "${DB_ROOT_USERNAME}" -p"${DB_ROOT_PASSWORD}" -e 'SELECT 1;'; do
+    >&2 echo "MySQL is unavailable - sleeping"
+    sleep 1
+  done
+}
+
+download_from_s3() {
+  echo "Downloading database from" $S3_BUCKET_URL
+  aws s3 cp "$S3_BUCKET_URL" ${DB_SCRATCH_DIR}/moo-base-schema.tar.gz && cd ${DB_SCRATCH_DIR}
+  echo "Extracting database"
+  tar -xvzf moo-base-schema.tar.gz -C ${DB_SCRATCH_DIR}
+  echo 'Removing DEFINER=`\w+`@`%` in views'
+  for file in $(ls ${DB_SCRATCH_DIR}/moo-base-schema/spark/spark.v_*.sql); do
+      sed -E -i.bak 's/DEFINER=`\w+`@`%`//g' $file
+      rm ${DB_SCRATCH_DIR}/moo-base-schema/spark/spark.v_*.sql.bak
+  done
+}
+
+restore_schemas() {
+  for schema in $(ls ${DB_SCRATCH_DIR}/moo-base-schema/); do
+    mysql -h "$DB_FQDN" -u "$DB_ROOT_USERNAME" -p"$DB_ROOT_PASSWORD" -e "drop database \`$schema-$HELM_RELEASE_NAME\`" && \
+      (myloader -h "$DB_FQDN" -u "$DB_ROOT_USERNAME" -p "$DB_ROOT_PASSWORD" -d ${DB_SCRATCH_DIR}/moo-base-schema/$schema -B "$schema-$HELM_RELEASE_NAME" || true)
+  done
+}
+
+cleanup() {
+  echo "Remove database files"
+  rm -rf ${DB_SCRATCH_DIR}
+}
+
+echo "Checking connection to MySQL Database" \ &&
+  db_connect \ &&
+  download_from_s3 \ &&
+  restore_schemas \ &&
+  cleanup \ &&
+  echo "All good to go."
