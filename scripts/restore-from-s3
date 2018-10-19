@@ -30,15 +30,6 @@ restore_schemas() {
   done
 }
 
-grantAccessForSchemas() {
-  echo "Grant database privilege to local MySQL user ($DB_USER_USERNAME)"
-  mysql -h "${DB_FQDN}" -u "${DB_ROOT_USERNAME}" -p"${DB_ROOT_PASSWORD}" -e "DROP USER '$DB_USER_USERNAME'@'%';"
-  mysql -h "${DB_FQDN}" -u "${DB_ROOT_USERNAME}" -p"${DB_ROOT_PASSWORD}" -e "CREATE USER '$DB_USER_USERNAME'@'%' IDENTIFIED BY '$DB_USER_PASSWORD';"
-  for schema in $(ls ${DB_SCRATCH_DIR}/moo-base-schema/); do
-    mysql -h "${DB_FQDN}" -u "${DB_ROOT_USERNAME}" -p"${DB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON \`${schema}-${HELM_RELEASE_NAME}\`.* TO '$DB_USER_USERNAME'@'%' IDENTIFIED BY '$DB_USER_PASSWORD';FLUSH PRIVILEGES;"
-  done
-}
-
 cleanup() {
   echo "Remove database files"
   rm -rf ${DB_SCRATCH_DIR}
@@ -48,6 +39,5 @@ echo "Checking connection to MySQL Database" \ &&
   db_connect \ &&
   download_from_s3 \ &&
   restore_schemas \ &&
-  grantAccessForSchemas &&
   cleanup \ &&
   echo "All good to go."
