@@ -1,24 +1,21 @@
-FROM gcc:8 as builder
-RUN curl https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh -o /tmp/curl-install.sh \
-      && chmod u+x /tmp/curl-install.sh \
-      && mkdir /usr/bin/cmake \
-      && /tmp/curl-install.sh --skip-license --prefix=/usr/bin/cmake \
-      && rm /tmp/curl-install.sh
-RUN bzr branch lp:mydumper
-WORKDIR /mydumper
-RUN /usr/bin/cmake/bin/cmake . && make
+FROM alpine:3.7
 
-FROM ubuntu
-RUN apt-get -y -q update \
-        && apt-get install -y libglib2.0-0 mariadb-client libmariadbclient-dev python python-pip \
-        && apt-get clean \
-        && apt-get autoclean \
-        && pip install awscli
+ENV LIB_PACKAGES='glib mariadb-client-libs pcre python2 bash curl' \
+    BUILD_PACKAGES='glib-dev mariadb-dev zlib-dev pcre-dev libressl-dev cmake build-base py2-pip'
 
-RUN apt-get install -y curl
-
-COPY --from=builder /mydumper/mydumper /usr/bin/
-COPY --from=builder /mydumper/myloader /usr/bin/
+RUN apk add --no-cache --update $LIB_PACKAGES $BUILD_PACKAGES \
+  && cd /tmp \
+  && export MYDUMPER_VERSION=$(curl -s "https://api.github.com/repos/maxbube/mydumper/releases/latest" | grep tag_name | cut -d '"' -f 4) \
+  && wget "https://github.com/maxbube/mydumper/archive/$MYDUMPER_VERSION.tar.gz" -O mydumper.tar.gz \
+  && tar -xzf mydumper.tar.gz \
+  && cd mydumper* \
+  && cmake . \
+  && make \
+  && make install \
+  && pip install awscli \
+  && apk del $BUILD_PACKAGES \
+  && (rm -rf /tmp/* 2>/dev/null || true) \
+  && (rm -rf /var/cache/apk/* 2>/dev/null || true)
 
 ENTRYPOINT ["/bin/bash"]
 CMD ["-c", "if [ ! -z $SCRIPT_URL ]; then curl --silent $SCRIPT_URL -o script && chmod +x script && ./script; fi"]
