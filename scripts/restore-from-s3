@@ -11,7 +11,7 @@ download_from_s3() {
   tar -xvzf schema.tar.gz -C ${DB_SCRATCH_DIR}
   echo 'Removing DEFINER=`\w+`@`%` in views'
   for file in $(ls $DB_SCRATCH_DIR/$HELM_RELEASE_NAME-schema/*.v_*.sql); do
-    sed -E -i.bak 's/DEFINER=`\w+`@`%`//g' $file
+    sed -E -i.bak 's/DEFINER=[^ ]* //g' $file
     rm $DB_SCRATCH_DIR/$HELM_RELEASE_NAME-schema/*.v_*.sql.bak
   done
 }
