@@ -10,7 +10,7 @@ dump_to_s3() {
   cd ${DB_SCRATCH_DIR}
   FILENAME=$(date +"%Y-%m-%dT%H-%M-%S%z")-${HELM_RELEASE_NAME}.tar.gz
   tar -czvf "${FILENAME}" "${HELM_RELEASE_NAME}-schema"
-  aws s3 cp "${FILENAME}" "${S3_BUCKET_URL}/${FILENAME}"
+  aws s3 cp "${FILENAME}" "${S3_BUCKET_URL}/${HELM_RELEASE_NAME}/${FILENAME}"
 }
 
 cleanup() {
