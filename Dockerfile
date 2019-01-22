@@ -1,6 +1,6 @@
 FROM alpine:3.7
 
-ENV LIB_PACKAGES='glib mariadb-client-libs mariadb-client pcre python2 bash curl' \
+ENV LIB_PACKAGES='glib mariadb-client-libs mariadb-client pcre python2 bash curl rsync' \
     BUILD_PACKAGES='glib-dev mariadb-dev zlib-dev pcre-dev libressl-dev cmake build-base py2-pip'
 
 RUN apk add --no-cache --update $LIB_PACKAGES $BUILD_PACKAGES \
