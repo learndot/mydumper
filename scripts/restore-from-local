@@ -1,0 +1,57 @@
+#!/bin/bash
+# Restore database from local.
+
+# Required Environments
+# - HELM_RELEASE_NAME ('-' will be automatically convert into '_')
+# - DB_FQDN
+# - DB_USERNAME
+# - DB_PASSWORD
+# - DB_PRIVILEDGED_USERNAME (optional, if provided, this user will be used to create the user above and granted it to the restored database)
+# - DB_PRIVILEDGED_PASSWORD (optional, if provided, this user will be used to create the user above and granted it to the restored database)
+# - TARGET_DIR
+# - OUTPUT_LOG_FILE (optional)
+
+set -eo pipefail
+
+FILENAME=$TARGET_DIR/db-schema.tar.gz
+DIRNAME=$HELM_RELEASE_NAME-schema
+MYDUMPER_OUTPUT=$TARGET_DIR/$DIRNAME
+DB_SUFFIX=$(echo $HELM_RELEASE_NAME | sed "s/-/_/g")
+
+grantAccessForSchemas() {
+  echo "Grant database privilege to local MySQL user ($DB_USERNAME)"
+  mysql -h"$DB_FQDN" -u"$DB_PRIVILEDGED_USERNAME" -p"$DB_PRIVILEDGED_PASSWORD" -e "DROP USER '$DB_USERNAME'@'%';" > /dev/null 2>&1 || true
+  mysql -h$DB_FQDN -u"$DB_PRIVILEDGED_USERNAME" -p"$DB_PRIVILEDGED_PASSWORD" -e "CREATE USER '$DB_USERNAME'@'%' IDENTIFIED BY '$DB_PASSWORD';"
+  for schema in $(ls $MYDUMPER_OUTPUT | grep schema-create | awk -F'_' '{print $1}'); do
+    mysql -h"$DB_FQDN" -u"$DB_PRIVILEDGED_USERNAME" -p"$DB_PRIVILEDGED_PASSWORD" -e "GRANT ALL PRIVILEGES ON \`$schema\_$DB_SUFFIX\`.* TO '$DB_USERNAME'@'%'; FLUSH PRIVILEGES;"
+  done
+}
+
+restore_db() {
+  if [ ! -f $FILENAME ]; then
+    echo "File not found!"
+    exit 1
+  fi
+
+  tar -xvzf $FILENAME -C $TARGET_DIR
+  echo 'Removing DEFINER=`\w+`@`%` in views'
+  for file in $(ls $MYDUMPER_OUTPUT/*.v_*.sql); do
+    sed -E -i.bak 's/DEFINER=[^ ]* //g' $file
+    rm $MYDUMPER_OUTPUT/*.v_*.sql.bak
+  done
+
+  if [ ! -z $DB_PRIVILEDGED_USERNAME ]; then
+    grantAccessForSchemas
+  fi
+
+  myloader -h $DB_FQDN -u $DB_USERNAME -p $DB_PASSWORD -o -d $MYDUMPER_OUTPUT || true
+  rm -rf $MYDUMPER_OUTPUT $FILENAME
+}
+
+if [ -z $OUTPUT_LOG_FILE ]; then
+  restore_db
+else
+  {
+    restore_db
+  } >> $OUTPUT_LOG_FILE 2>$OUTPUT_LOG_FILE
+fi
