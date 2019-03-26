@@ -2,7 +2,7 @@
 # Dump database for databases with a postfix.
 
 # Required Environments
-# - DB_NAME_POSTFIX ('-' will be automatically convert into '_')
+# - HELM_RELEASE_NAME ('-' will be automatically convert into '_')
 # - DB_FQDN
 # - DB_USERNAME
 # - DB_PASSWORD
@@ -12,11 +12,11 @@
 set -eo pipefail
 
 FILENAME=$TARGET_DIR/db-schema.tar.gz
-DIRNAME=$DB_NAME_POSTFIX-schema
+DIRNAME=$HELM_RELEASE_NAME-schema
 MYDUMPER_OUTPUT=$TARGET_DIR/$DIRNAME
-DB_SUFFIX=$(echo $DB_NAME_POSTFIX | sed "s/-/_/g")
+DB_SUFFIX=$(echo $HELM_RELEASE_NAME | sed "s/-/_/g")
 
-dump_to_pv() {
+dump_db() {
   rm -rf $MYDUMPER_OUTPUT $FILENAME
   mydumper -h $DB_FQDN -u $DB_USERNAME -p $DB_PASSWORD -o $MYDUMPER_OUTPUT --lock-all-tables -x ".*_$DB_SUFFIX\."
   tar -czvf $FILENAME -C $TARGET_DIR $DIRNAME
@@ -24,9 +24,9 @@ dump_to_pv() {
 }
 
 if [ -z $OUTPUT_LOG_FILE ]; then
-  dump_to_pv
+  dump_db
 else
   {
-    dump_to_pv
+    dump_db
   } >> $OUTPUT_LOG_FILE 2>$OUTPUT_LOG_FILE
 fi
