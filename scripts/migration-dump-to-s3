@@ -1,0 +1,24 @@
+#!/bin/bash
+
+set -euo pipefail
+
+export DB_SCRATCH_DIR='/db'
+export DB_SUFFIX=$(echo ${HELM_RELEASE_NAME} | sed "s/-/_/g")
+
+dump_to_s3() {
+  mkdir -p "${DB_SCRATCH_DIR}"
+  mydumper -h "${DB_FQDN}" -P "${DB_PORT}" -u "${DB_USER_USERNAME}" -p "${DB_USER_PASSWORD}" -o "${DB_SCRATCH_DIR}/${HELM_RELEASE_NAME}-schema" --lock-all-tables -x "^(spark|quartz)"
+  cd ${DB_SCRATCH_DIR}
+  FILENAME=$(date +"%Y%m%d%H%M%S")-${HELM_RELEASE_NAME}.tar.gz
+  tar -czvf "${FILENAME}" "${HELM_RELEASE_NAME}-schema"
+  aws s3 cp "${FILENAME}" "${S3_BUCKET_URL}/${HELM_RELEASE_NAME}/${FILENAME}"
+}
+
+cleanup() {
+  echo "Remove database files"
+  rm -rf ${DB_SCRATCH_DIR}
+}
+
+dump_to_s3 \ &&
+  cleanup \ &&
+  echo "Successfully uploaded to ${S3_BUCKET_URL}."
