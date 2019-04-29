@@ -17,5 +17,8 @@ RUN apk add --no-cache --update $LIB_PACKAGES $BUILD_PACKAGES \
   && (rm -rf /tmp/* 2>/dev/null || true) \
   && (rm -rf /var/cache/apk/* 2>/dev/null || true)
 
+COPY ./scripts /scripts
+WORKDIR /scripts
+
 ENTRYPOINT ["/bin/bash"]
 CMD ["-c", "if [ ! -z $SCRIPT_URL ]; then curl --silent $SCRIPT_URL -o script && chmod +x script && ./script; fi"]
